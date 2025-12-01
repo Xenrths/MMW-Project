@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Daily Food & Sleep Dashboard</title>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  :root{
+    --bg:#f2f8f0;
+    --card:#ffffff;
+    --accent:#2aa84f; /* green */
+    --accent-2:#f7c948; /* yellow */
+    --muted:#6b7280;
+    --soft:#ecf6ea;
+    --radius:14px;
+    --glass: rgba(255,255,255,0.6);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+  html,body{height:100%; margin:0; background:linear-gradient(180deg,var(--bg),#f8fbf5); color:#07201a;}
+  .app{ display:grid; grid-template-columns:220px 1fr; gap:24px; padding:28px; max-width:1200px; margin:0 auto; align-items:start; }
+  /* SIDEBAR */
+  .sidebar{ background:var(--card); border-radius:16px; padding:18px; box-shadow:0 6px 20px rgba(2,6,10,0.06); height:calc(100vh - 56px); position:sticky; top:28px; }
+  .brand{ display:flex; gap:10px; align-items:center; margin-bottom:20px; }
+  .logo{ width:44px; height:44px; background:linear-gradient(135deg,var(--accent), #80d18a); border-radius:10px; display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:18px; }
+  .brand h3{ margin:0; font-size:16px; color:#0f2b1f; }
+  .menu{ margin-top:8px; display:flex; flex-direction:column; gap:8px; }
+  .menu button{ text-align:left; background:transparent; border:none; padding:10px 8px; border-radius:10px; cursor:pointer; color:var(--muted); font-weight:600;}
+  .menu button.active{ background:linear-gradient(90deg, rgba(42,168,79,0.10), rgba(247,201,72,0.05)); color:var(--accent); box-shadow: inset 0 -1px 0 rgba(0,0,0,0.02); }
+
+  /* MAIN */
+  .main{ display:flex; flex-direction:column; gap:18px; }
+  .header{ display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .greeting{ display:flex; flex-direction:column; }
+  .greeting h1{ margin:0; font-size:20px; color:#052414; }
+  .greeting p{ margin:0; color:var(--muted); font-size:13px; }
+
+  .controls{ display:flex; gap:10px; align-items:center; }
+  .controls .btn{ padding:8px 12px; border-radius:10px; border:none; cursor:pointer; font-weight:700; }
+  .btn.primary{ background:var(--accent); color:white; box-shadow:0 6px 18px rgba(42,168,79,0.12); }
+  .btn.ghost{ background:white; border:1px solid rgba(2,6,10,0.04); color:var(--muted); }
+
+  /* CARDS ROW */
+  .cards{ display:grid; grid-template-columns: repeat(5,1fr); gap:14px; }
+  .card{ background:var(--card); border-radius:var(--radius); padding:14px; box-shadow:0 8px 30px rgba(3,7,12,0.04); min-height:80px; display:flex; flex-direction:column; justify-content:center; }
+  .card .label{ font-size:12px; color:var(--muted); }
+  .card .value{ font-size:20px; font-weight:800; margin-top:6px; color:#062914; }
+
+  /* LAYOUT CHARTS */
+  .grid{ display:grid; grid-template-columns: 1fr 420px; gap:18px; align-items:start; }
+  .panel{ background:var(--card); border-radius:12px; padding:14px; box-shadow:0 8px 30px rgba(3,7,12,0.04); }
+
+  /* adapt */
+  @media (max-width:980px){
+    .app{ grid-template-columns:1fr; padding:18px; }
+    .sidebar{ position:relative; height:auto; }
+    .cards{ grid-template-columns: repeat(2,1fr); }
+    .grid{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">DF</div>
+        <div>
+          <h3>DailyFood</h3>
+          <div style="font-size:12px;color:var(--muted)">Health Monitor</div>
+        </div>
+      </div>
+
+      <nav class="menu" aria-label="Main menu">
+        <button class="active">Dashboard</button>
+        <button>Logs</button>
+        <button>Export</button>
+        <button>About</button>
+      </nav>
+
+      <div style="margin-top:22px; font-size:13px; color:var(--muted)">
+        <div style="margin-bottom:8px; font-weight:700; color:#0d2818">Quick Tips</div>
+        <ul style="padding-left:18px; margin:0; color:var(--muted)">
+          <li>Log daily for accurate trends</li>
+          <li>Drink at least 6 cups water</li>
+          <li>Balance meals for better sleep</li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <header class="header">
+        <div class="greeting">
+          <h1>Daily Food & Sleep Dashboard</h1>
+          <p class="muted">Mathematics as a Statistical Tool — personal health monitoring</p>
+        </div>
+
+        <div class="controls">
+          <button class="btn primary" id="saveBtnTop" title="Save current form entry">Save Entry</button>
+          <button class="btn ghost" id="exportBtnTop">Export CSV</button>
+          <button class="btn ghost" id="sampleBtnTop">Add Sample Data</button>
+          <button class="btn ghost" id="clearBtnTop">Clear All</button>
+        </div>
+      </header>
+
+      <!-- FORM (compact, placed under header) -->
+      <section class="card" style="display:flex; gap:12px; align-items:center;">
+        <div style="flex:1; display:flex; gap:8px; align-items:center;">
+          <div style="flex:1;">
+            <label style="font-size:13px; color:var(--muted)">Date</label>
+            <input id="date" type="date" style="width:100%; padding:8px; border-radius:8px; border:1px solid #e6f0e9;">
+          </div>
+
+          <div style="width:120px;">
+            <label style="font-size:13px; color:var(--muted)">Sleep (hrs)</label>
+            <input id="sleep" type="number" step="0.1" placeholder="7.5" style="width:100%; padding:8px; border-radius:8px; border:1px solid #e6f0e9;">
+          </div>
+
+          <div style="width:220px;">
+            <label style="font-size:13px; color:var(--muted)">Food</label>
+            <select id="food" style="width:100%; padding:8px; border-radius:8px; border:1px solid #e6f0e9;">
+              <option value="">Select food</option>
+              <optgroup label="Healthy">
+                <option>Vegetables</option>
+                <option>Fruits</option>
+                <option>High-Protein Meal</option>
+                <option>Whole Grains</option>
+                <option>Balanced Home Meal</option>
+              </optgroup>
+              <optgroup label="Unhealthy">
+                <option>Fast Food</option>
+                <option>Processed Snacks</option>
+                <option>Sugary Drinks</option>
+                <option>Fried Foods</option>
+                <option>Sweets / Desserts</option>
+              </optgroup>
+              <optgroup label="Neutral / Mixed">
+                <option>Mixed Meal</option>
+                <option>Average Home Meal</option>
+                <option>Canteen Food</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div style="width:120px;">
+            <label style="font-size:13px; color:var(--muted)">Water (cups)</label>
+            <input id="water" type="number" step="1" placeholder="5" style="width:100%; padding:8px; border-radius:8px; border:1px solid #e6f0e9;">
+          </div>
+
+          <div style="width:130px;">
+            <label style="font-size:13px; color:var(--muted)">Exercise (min)</label>
+            <input id="exercise" type="number" step="1" placeholder="20" style="width:100%; padding:8px; border-radius:8px; border:1px solid #e6f0e9;">
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button class="btn primary" id="saveBtn">Save</button>
+          <button class="btn ghost" id="resetForm">Reset</button>
+        </div>
+      </section>
+
+      <!-- STAT CARDS -->
+      <section class="cards">
+        <div class="card">
+          <div class="label">Average Sleep</div>
+          <div class="value" id="avgSleep">-</div>
+        </div>
+
+        <div class="card">
+          <div class="label">% Healthy Meals</div>
+          <div class="value" id="pctHealthy">-</div>
+        </div>
+
+        <div class="card">
+          <div class="label">Average Water (cups)</div>
+          <div class="value" id="avgWater">-</div>
+        </div>
+
+        <div class="card">
+          <div class="label">Average Exercise (min)</div>
+          <div class="value" id="avgExercise">-</div>
+        </div>
+
+        <div class="card">
+          <div class="label">Total Entries</div>
+          <div class="value" id="totalEntries">0</div>
+        </div>
+      </section>
+
+      <!-- MAIN GRID: charts + side panel -->
+      <section class="grid">
+        <div class="panel">
+          <h3 style="margin:0 0 8px 0; color:#0b3c26">Sleep - Last Entries</h3>
+          <canvas id="sleepChart" height="220"></canvas>
+        </div>
+
+        <aside class="panel">
+          <h3 style="margin:0 0 8px 0; color:#0b3c26">Food Distribution</h3>
+          <canvas id="foodChart" height="180"></canvas>
+
+          <h3 style="margin:14px 0 8px 0; color:#0b3c26">Water Intake</h3>
+          <canvas id="waterChart" height="160"></canvas>
+        </aside>
+      </section>
+
+    </main>
+  </div>
+
+<script>
+/* Single-file app logic
+   - localStorage key: df_health_v2
+   - charts: Chart.js
+*/
+const KEY = 'df_health_v2';
+
+function loadData(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(e){ return []; } }
+function saveData(d){ localStorage.setItem(KEY, JSON.stringify(d)); }
+
+// UI refs
+const dateEl = document.getElementById('date');
+const sleepEl = document.getElementById('sleep');
+const foodEl = document.getElementById('food');
+const waterEl = document.getElementById('water');
+const exerciseEl = document.getElementById('exercise');
+const saveBtn = document.getElementById('saveBtn');
+const saveBtnTop = document.getElementById('saveBtnTop');
+const exportBtnTop = document.getElementById('exportBtnTop');
+const sampleBtnTop = document.getElementById('sampleBtnTop');
+const clearBtnTop = document.getElementById('clearBtnTop');
+const resetFormBtn = document.getElementById('resetForm');
+
+const avgSleepEl = document.getElementById('avgSleep');
+const pctHealthyEl = document.getElementById('pctHealthy');
+const avgWaterEl = document.getElementById('avgWater');
+const avgExerciseEl = document.getElementById('avgExercise');
+const totalEntriesEl = document.getElementById('totalEntries');
+
+let sleepChart, foodChart, waterChart;
+
+function computeStatsAndRender(){
+  const arr = loadData();
+  // ensure sorted by date
+  arr.sort((a,b)=> (a.date > b.date)?1:-1);
+
+  if(arr.length === 0){
+    avgSleepEl.textContent = '-';
+    pctHealthyEl.textContent = '-';
+    avgWaterEl.textContent = '-';
+    avgExerciseEl.textContent = '-';
+    totalEntriesEl.textContent = '0';
+    if(sleepChart) { sleepChart.destroy(); sleepChart=null; }
+    if(foodChart) { foodChart.destroy(); foodChart=null; }
+    if(waterChart) { waterChart.destroy(); waterChart=null; }
+    return;
+  }
+
+  const avg = (key) => (arr.reduce((s,x)=> s + Number(x[key] || 0),0) / arr.length);
+  const avgSleep = Number(avg('sleep') || 0).toFixed(2);
+  const avgWater = Number(avg('water') || 0).toFixed(2);
+  const avgExercise = Number(avg('exercise') || 0).toFixed(0);
+
+  // food groups count (group healthy vs unhealthy vs mixed)
+  const healthySet = new Set(['Vegetables','Fruits','High-Protein Meal','Whole Grains','Balanced Home Meal']);
+  const unhealthySet = new Set(['Fast Food','Processed Snacks','Sugary Drinks','Fried Foods','Sweets / Desserts']);
+  const mixedSet = new Set(['Mixed Meal','Average Home Meal','Canteen Food']);
+
+  let healthy=0, unhealthy=0, mixed=0;
+  const foodCounts = {}; // specific counts
+  arr.forEach(r=>{
+    const f = r.food || 'Unknown';
+    foodCounts[f] = (foodCounts[f]||0) + 1;
+    if(healthySet.has(f)) healthy++;
+    else if(unhealthySet.has(f)) unhealthy++;
+    else if(mixedSet.has(f)) mixed++;
+  });
+
+  const pctHealthy = Math.round(100 * healthy / arr.length);
+
+  // update stat cards
+  avgSleepEl.textContent = avgSleep + ' hrs';
+  avgWaterEl.textContent = avgWater;
+  avgExerciseEl.textContent = avgExercise + ' min';
+  pctHealthyEl.textContent = pctHealthy + '%';
+  totalEntriesEl.textContent = arr.length;
+
+  // prepare chart data
+  const labels = arr.map(x=> x.date);
+  const sleepData = arr.map(x=> Number(x.sleep) || 0);
+  const waterData = arr.map(x=> Number(x.water) || 0);
+
+  // destroy existing charts
+  if(sleepChart) sleepChart.destroy();
+  if(foodChart) foodChart.destroy();
+  if(waterChart) waterChart.destroy();
+
+  // SLEEP LINE
+  const ctxS = document.getElementById('sleepChart').getContext('2d');
+  sleepChart = new Chart(ctxS, {
+    type:'line',
+    data:{ labels, datasets:[ { label:'Sleep (hrs)', data: sleepData, borderColor:'#2aa84f', backgroundColor:'rgba(42,168,79,0.08)', tension:0.3 } ] },
+    options:{ plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, suggestedMax:10 } } }
+  });
+
+  // FOOD PIE (only items with count>0)
+  const foodLabels = Object.keys(foodCounts);
+  const foodValues = Object.values(foodCounts);
+  const ctxF = document.getElementById('foodChart').getContext('2d');
+  foodChart = new Chart(ctxF, {
+    type:'pie',
+    data:{ labels: foodLabels, datasets:[ { data: foodValues, backgroundColor: generatePalette(foodLabels.length) } ] },
+    options:{ plugins:{ legend:{ position:'bottom' } } }
+  });
+
+  // WATER BAR
+  const ctxW = document.getElementById('waterChart').getContext('2d');
+  waterChart = new Chart(ctxW, {
+    type:'bar',
+    data:{ labels, datasets:[ { label:'Water (cups)', data: waterData, backgroundColor:'#7aa5ff' } ] },
+    options:{ plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+  });
+}
+
+// small color palette generator
+function generatePalette(n){
+  const pal = ['#7bd389','#f7d774','#ff9e9e','#81f7b9','#a1d4ff','#ffb36b','#b7a9ff','#ff77b4'];
+  const out = [];
+  for(let i=0;i<n;i++) out.push(pal[i % pal.length]);
+  return out;
+}
+
+// Save entry function (reusable)
+function saveEntryFromForm(){
+  const date = (document.getElementById('date').value) || new Date().toISOString().slice(0,10);
+  const sleep = parseFloat(document.getElementById('sleep').value) || 0;
+  const food = document.getElementById('food').value || 'Unknown';
+  const water = parseInt(document.getElementById('water').value) || 0;
+  const exercise = parseInt(document.getElementById('exercise').value) || 0;
+
+  const arr = loadData();
+  arr.push({ date, sleep, food, water, exercise });
+  saveData(arr);
+  computeAndNotify('Entry saved!');
+  computeStatsAndRender();
+}
+
+// small notify helper (non-blocking)
+function computeAndNotify(msg){
+  // simple alert for now (keeps it school-safe)
+  // you may replace with toast UI easily
+  // but to avoid too many alerts, comment out if needed
+  // alert(msg);
+  console.log(msg);
+}
+
+// wire buttons
+saveBtn.onclick = saveEntryFromForm;
+saveBtnTop.onclick = saveEntryFromForm;
+document.getElementById('exportBtnTop').onclick = function(){
+  const data = loadData();
+  if(!data.length) return alert('No data to export.');
+  let csv = 'Date,Sleep,Food,Water,Exercise\n';
+  data.forEach(r => { csv += `${r.date},${r.sleep},${r.food},${r.water},${r.exercise}\n`; });
+  const blob = new Blob([csv], { type:'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'daily_health.csv'; a.click();
+  URL.revokeObjectURL(url);
+};
+sampleBtnTop.onclick = function(){
+  const sample = [
+    { date: '2025-11-25', sleep:7.5, food:'Balanced Home Meal', water:6, exercise:25 },
+    { date: '2025-11-26', sleep:6.0, food:'Fast Food', water:3, exercise:0 },
+    { date: '2025-11-27', sleep:8.0, food:'Vegetables', water:7, exercise:30 },
+  ];
+  const arr = loadData();
+  sample.forEach(s=>arr.push(s));
+  saveData(arr);
+  computeStatsAndRender();
+  alert('Sample data added.');
+};
+clearBtnTop.onclick = function(){
+  if(confirm('Clear all saved entries?')){ localStorage.removeItem(KEY); computeStatsAndRender(); }
+};
+resetFormBtn.onclick = function(){ dateEl.value=''; sleepEl.value=''; foodEl.value=''; waterEl.value=''; exerciseEl.value=''; };
+
+// init
+computeStatsAndRender();
+</script>
+
+</body>
+</html>
